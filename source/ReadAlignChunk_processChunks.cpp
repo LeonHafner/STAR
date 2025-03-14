@@ -13,7 +13,27 @@ void ReadAlignChunk::processChunks() {//read-map-write chunks
     bool newFile=false; //new file marker in the input stream
     while (!noReadsLeft) {//continue until the input EOF
             //////////////read a chunk from input files and store in memory
-        if (P.outFilterBySJoutStage<2) {//read chunks from input file
+        if (P.readFilesTypeN==20) {//BINSEQ                 
+            while (chunkInSizeBytesTotal[0] < P.chunkInSizeBytes && chunkInSizeBytesTotal[1] < P.chunkInSizeBytes) {           
+
+                //read ID
+                for (uint imate1=0; imate1<P.readNends; imate1++) {
+                    chunkInSizeBytesTotal[imate1] += sprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], ">%llu %c %i", P.iReadAll, 'Y', P.readFilesIndex);
+                };                    
+
+                //sequence(s)
+                if (!P.binSeq->loadRecord(P.iReadAll, chunkIn, chunkInSizeBytesTotal)) {
+                    ostringstream errOut;
+                    errOut << "EXITING because of FATAL ERROR in input binseq file: could not read record " << P.iReadAll << '\n';
+                    exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+                };
+                ++P.iReadAll;
+                if (P.iReadAll == P.binSeq->readN || P.iReadAll==P.readMapNumber) {//do not read any more reads
+                    noReadsLeft=true;
+                    break;
+                };                
+            };
+        } else if (P.outFilterBySJoutStage<2) {//read chunks from input file
 
             if (P.runThreadN>1) pthread_mutex_lock(&g_threadChunks.mutexInRead);
 
@@ -23,10 +43,10 @@ void ReadAlignChunk::processChunks() {//read-map-write chunks
                 char nextChar=P.inOut->readIn[0].peek();
                 if (P.iReadAll==P.readMapNumber) {//do not read any more reads
                     break;
-                    
+
+                /////////////
                 ///////////////////////////////////////////////////////////////////////////////////// SAM                        
                 } else if (P.readFilesTypeN==10 && P.inOut->readIn[0].good() && P.outFilterBySJoutStage!=2) {//SAM input && not eof && not 2nd stage
-
 
                     if (nextChar=='@') {//with SAM input linest that start with @ are headers
                         P.inOut->readIn[0].ignore(DEF_readNameSeqLengthMax,'\n'); //read line and skip it

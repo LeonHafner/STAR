@@ -166,5 +166,5 @@ void Parameters::readFilesInit()
         };
     };
     
-    readNmates=readNends; //this may be changed later if one of the reads is barcode rea
+    readNmates=readNends; //this may be changed later if one of the reads is a barcode read
 };

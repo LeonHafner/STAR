@@ -12,8 +12,15 @@ void Parameters::openReadsFiles()
         };
         readFilesN=1;
         binSeq = new BinSeq(readFilesIn[0]);
-        exit(0);
+
+        if (binSeq->isPE) {
+            readNends=2;
+        } else {
+            readNends=1;
+        };
+        readNmates=readNends; //this may be changed later if one of the reads is a barcode read
         return;
+        
     } else if (readFilesCommandString=="") {//read from file
         for (uint ii=0;ii<readFilesIn.size();ii++) {//open readIn files
             readFilesCommandPID[ii]=0;//no command process IDs
