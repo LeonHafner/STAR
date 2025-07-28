@@ -360,66 +360,95 @@ void SoloReadBarcode::getCBandUMI(char **readSeq, char **readQual, uint64 *readL
         };
 
         cbMatchInd={0};
-        for (auto &cb : pSolo.cbV) {//cycle over multiple barcodes
-            
-            string cbSeq1, cbQual1;
-            if ( !cb.extractBarcode(bSeq, bQual, adapterStart, cbSeq1, cbQual1) 
-                 || cbSeq1.size() < cb.minLen || cbSeq1.size() >= cb.wl.size() || cb.wl[cbSeq1.size()].size()==0 ) {
-                //barcode cannot be extracted
-                if (cbMatchGood) {
-                    cbMatch=-11;
-                    cbMatchGood=false;
-                };
-            };
-            cbSeq  += cbSeq1 + "_";
-            cbQual += cbQual1 + "_";
-            
-            if (!cbMatchGood)
-                continue; //continue - to be able to record full cbSeq, cbQual, but no need to match to the WL
-            
-            uint64 cbLen1 = cbSeq1.size();
-            if ( pSolo.CBmatchWL.EditDist_2 ) {
-                cbMatch=0; //0: no MM, 1: >=1MM. 2: multi-match: not allowed for this option
-                uintCB cbB1;
-                int64 posN=convertNuclStrToInt64(cbSeq1,cbB1);
-                if (posN!=-1) {//Ns in barcode: no good match
-                    cbMatch = -2;
-                    cbMatchGood = false;
-                } else {
-                    int64 cbI=binarySearchExact<uint64>(cbB1,cb.wl[cbSeq1.size()].data(),cb.wl[cbLen1].size());
-                    if (cbI>=0) {//exact match
-                        cbMatchInd[0] += cb.wlFactor*(cbI+cb.wlAdd[cbLen1]);
-                    } else {//no exact match
-                        cbI=binarySearchExact<uint64>(cbB1,cb.wlEd[cbLen1].data(),cb.wlEd[cbLen1].size());
-                        if (cbI>=0) {//find match in the edited list
-                            cbMatch = 1; //>=1MM
-                            cbI = cb.wlEdInd[cbLen1][cbI];
-                            cbMatchInd[0] += cb.wlFactor*(cbI+cb.wlAdd[cbLen1]);
-                        } else {
-                            cbMatch = -1;
-                            cbMatchGood = false;
-                        };
+        if (pSolo.cbWLyes) {
+            for (auto &cb : pSolo.cbV) {//cycle over multiple barcodes
+
+                string cbSeq1, cbQual1;
+                if ( !cb.extractBarcode(bSeq, bQual, adapterStart, cbSeq1, cbQual1)
+                     || cbSeq1.size() < cb.minLen || cbSeq1.size() >= cb.wl.size() || cb.wl[cbSeq1.size()].size()==0 ) {
+                    //barcode cannot be extracted
+                    if (cbMatchGood) {
+                        cbMatch=-11;
+                        cbMatchGood=false;
                     };
                 };
-            } else {// Exact or 1MM
-                int32 cbMatch1;
-                vector<uint64> cbMatchInd1;
-                matchCBtoWL(cbSeq1, cbQual1, cb.wl[cbLen1], cbMatch1, cbMatchInd1, cbMatchString); //cbMatchString is not used for now, multiple matches are not allowed
-                if (cbMatch1<0) {//no match
-                    cbMatchGood=false;
-                    cbMatch = cbMatch1;
-                } else if (cbMatch1>0 && cbMatch>0) {//this barcode has >1 1MM match, or previous barcode had a mismatch
-                    cbMatchGood=false;
-                    cbMatch = -12; //marks mismatches in multiple barcodes
-                } else {//good match
-                    cbMatchInd[0] += cb.wlFactor*(cbMatchInd1[0]+cb.wlAdd[cbLen1]);
-                    cbMatch=max(cbMatch,cbMatch1);//1 wins over 0
+                cbSeq  += cbSeq1 + "_";
+                cbQual += cbQual1 + "_";
+
+                if (!cbMatchGood)
+                    continue; //continue - to be able to record full cbSeq, cbQual, but no need to match to the WL
+
+                uint64 cbLen1 = cbSeq1.size();
+                if ( pSolo.CBmatchWL.EditDist_2 ) {
+                    cbMatch=0; //0: no MM, 1: >=1MM. 2: multi-match: not allowed for this option
+                    uintCB cbB1;
+                    int64 posN=convertNuclStrToInt64(cbSeq1,cbB1);
+                    if (posN!=-1) {//Ns in barcode: no good match
+                        cbMatch = -2;
+                        cbMatchGood = false;
+                    } else {
+                        int64 cbI=binarySearchExact<uint64>(cbB1,cb.wl[cbSeq1.size()].data(),cb.wl[cbLen1].size());
+                        if (cbI>=0) {//exact match
+                            cbMatchInd[0] += cb.wlFactor*(cbI+cb.wlAdd[cbLen1]);
+                        } else {//no exact match
+                            cbI=binarySearchExact<uint64>(cbB1,cb.wlEd[cbLen1].data(),cb.wlEd[cbLen1].size());
+                            if (cbI>=0) {//find match in the edited list
+                                cbMatch = 1; //>=1MM
+                                cbI = cb.wlEdInd[cbLen1][cbI];
+                                cbMatchInd[0] += cb.wlFactor*(cbI+cb.wlAdd[cbLen1]);
+                            } else {
+                                cbMatch = -1;
+                                cbMatchGood = false;
+                            };
+                        };
+                    };
+                } else {// Exact or 1MM
+                    int32 cbMatch1;
+                    vector<uint64> cbMatchInd1;
+                    matchCBtoWL(cbSeq1, cbQual1, cb.wl[cbLen1], cbMatch1, cbMatchInd1, cbMatchString); //cbMatchString is not used for now, multiple matches are not allowed
+                    if (cbMatch1<0) {//no match
+                        cbMatchGood=false;
+                        cbMatch = cbMatch1;
+                    } else if (cbMatch1>0 && cbMatch>0) {//this barcode has >1 1MM match, or previous barcode had a mismatch
+                        cbMatchGood=false;
+                        cbMatch = -12; //marks mismatches in multiple barcodes
+                    } else {//good match
+                        cbMatchInd[0] += cb.wlFactor*(cbMatchInd1[0]+cb.wlAdd[cbLen1]);
+                        cbMatch=max(cbMatch,cbMatch1);//1 wins over 0
+                    };
                 };
             };
+        } else {
+            uint32 cbShift=0;
+            for (auto &cb : pSolo.cbV) {
+                string cbSeq1, cbQual1;
+                if ( !cb.extractBarcode(bSeq, bQual, adapterStart, cbSeq1, cbQual1) ) {
+                    if (cbMatchGood) {
+                        cbMatch=-11;
+                        cbMatchGood=false;
+                    };
+                };
+                cbSeq  += cbSeq1 + "_";
+                cbQual += cbQual1 + "_";
+                if (!cbMatchGood)
+                    continue;
+                uint64 cbB1;
+                int64 posN = convertNuclStrToInt64(cbSeq1, cbB1);
+                if (posN!=-1) {
+                    cbMatch=-2;
+                    cbMatchGood=false;
+                } else {
+                    cbMatchInd[0] |= cbB1<<cbShift;
+                    cbShift += cbSeq1.size()*2;
+                };
+            };
+            if (cbShift==0) cbMatchGood=false; //no barcode extracted
+            if (cbMatchGood)
+                cbMatch=0;
         };
         cbSeq.pop_back();//remove last "_" from file
         cbQual.pop_back();
-        
+
         if (cbMatchGood) {
             cbMatchString=to_string(cbMatchInd[0]);
         };

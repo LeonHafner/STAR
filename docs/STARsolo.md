@@ -37,6 +37,7 @@ Running STARsolo for 10X Chromium scRNA-seq data
 * STARsolo is run the same way as normal STAR run, with addition of several STARsolo parameters:
     ```
    /path/to/STAR --genomeDir /path/to/genome/dir/ --readFilesIn ...  [...other parameters...] --soloType ... --soloCBwhitelist ...
+   (use `--soloCBwhitelist None` to disable whitelisting)
     ```
    The genome index is the same as for normal STAR runs. </br>
    The parameters required to run STARsolo on 10X Chromium data are described below:
@@ -344,7 +345,8 @@ soloType                    None
 
 soloCBwhitelist             -
     string(s): file(s) with whitelist(s) of cell barcodes. Only --soloType CB_UMI_Complex allows more than one whitelist file.
-                            None            ... no whitelist: all cell barcodes are allowed
+                            None            ... no whitelist: all cell barcodes are allowed. For complex barcodes this can be specified once
+                                             (e.g. `--soloCBwhitelist None`) or for each barcode segment.
 
 soloCBstart                 1
     int>0: cell barcode start base
