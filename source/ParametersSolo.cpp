@@ -4,6 +4,7 @@
 #include "streamFuns.h"
 #include "SequenceFuns.h"
 #include "serviceFuns.cpp"
+#include <algorithm>
 
 #include <stdlib.h>
 
@@ -347,53 +348,65 @@ void ParametersSolo::initialize(Parameters *pPin)
         cbWLyes=true; 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
     } else if (type==SoloTypes::CB_UMI_Complex) {//complex barcodes: multiple whitelist (one for each CB), varying CB length
-        cbWLyes=true; //for complex barcodes, no-whitelist option is not allowed for now
-        
+
         adapterYes=false;
         if (adapterSeq!="-")
             adapterYes=true;
-        
-        if (cbPositionStr.size() != soloCBwhitelist.size()) {
+
+        bool noWL = false;
+        if (soloCBwhitelist.size()==1 && soloCBwhitelist[0]=="None") {
+            noWL=true;
+        } else if (soloCBwhitelist.size()==cbPositionStr.size()) {
+            noWL = std::all_of(soloCBwhitelist.begin(), soloCBwhitelist.end(), [](const string &s){return s=="None";});
+        };
+
+        if (!noWL && cbPositionStr.size() != soloCBwhitelist.size()) {
             ostringstream errOut;
             errOut << "EXITING because of fatal PARAMETER error: number of barcodes in --soloCBposition : "<< cbPositionStr.size() <<" is not equal to the number of WhiteLists in --soloCBwhitelist : " << soloCBwhitelist.size() <<"\n"  ;
             errOut << "SOLUTION: make sure that the number of CB whitelists and CB positions are the same\n";
             exitWithError(errOut.str(),std::cerr, pP->inOut->logMain, EXIT_CODE_INPUT_FILES, *pP);
         };
+
+        cbWLyes = !noWL;
         cbV.resize(cbPositionStr.size());
         for (uint32 ii=0; ii<cbPositionStr.size(); ii++) {
             cbV[ii].extractPositionsFromString(cbPositionStr[ii]);
         };
-        
+
         umiV.extractPositionsFromString(umiPositionStr);
         umiL = 0; //this will be defined when the first barcode is processed
-              
+
         umiV.adapterLength=adapterSeq.size();//one adapter for all
-        cbWLsize=1;
-        for (uint32 icb=0; icb<cbV.size(); icb++) {//cycle over WL files
-            cbV[icb].adapterLength=adapterSeq.size();//one adapter for all
-            
-            ifstream & cbWlStream = ifstrOpen(soloCBwhitelist[icb], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[icb], *pP);
-            
-            string seq1;
-            while (cbWlStream >> seq1) {//cycle over one WL file
-                uint64 cb1;
-                if (!convertNuclStrToInt64(seq1,cb1)) {//convert to 2-bit format
-                    pP->inOut->logMain << "WARNING: CB whitelist sequence contains non-ACGT base and is ignored: " << seq1 <<endl;
-                    continue;
+        if (cbWLyes) {
+            cbWLsize=1;
+            for (uint32 icb=0; icb<cbV.size(); icb++) {//cycle over WL files
+                cbV[icb].adapterLength=adapterSeq.size();//one adapter for all
+
+                ifstream & cbWlStream = ifstrOpen(soloCBwhitelist[icb], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[icb], *pP);
+
+                string seq1;
+                while (cbWlStream >> seq1) {//cycle over one WL file
+                    uint64 cb1;
+                    if (!convertNuclStrToInt64(seq1,cb1)) {//convert to 2-bit format
+                        pP->inOut->logMain << "WARNING: CB whitelist sequence contains non-ACGT base and is ignored: " << seq1 <<endl;
+                        continue;
+                    };
+
+                    uint32 len1=seq1.size();
+                    if (len1>=cbV[icb].wl.size())
+                        cbV[icb].wl.resize(len1+1);//add new possible lengths to this CB
+                    cbV[icb].wl.at(len1).push_back(cb1);
                 };
-                
-                uint32 len1=seq1.size();
-                if (len1>=cbV[icb].wl.size())
-                    cbV[icb].wl.resize(len1+1);//add new possible lengths to this CB
-                cbV[icb].wl.at(len1).push_back(cb1);
+
+                cbV[icb].sortWhiteList(this);
+                cbV[icb].wlFactor=cbWLsize;
+                cbWLsize *= cbV[icb].totalSize;
             };
-            
-            cbV[icb].sortWhiteList(this);
-            cbV[icb].wlFactor=cbWLsize;
-            cbWLsize *= cbV[icb].totalSize;
+
+            complexWLstrings();
+        } else {
+            cbWLsize = 0;
         };
-        
-        complexWLstrings();
     };
 
     time_t rawTime;
